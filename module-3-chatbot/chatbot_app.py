@@ -1,62 +1,64 @@
-"""Exercise 3: Modular chatbot using Microsoft Foundry Responses API."""
-import os
+#This is the foundation of an Interactive AI chatbot that handels MULTIPLE question per run:
 
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+# This application connects to Microsoft Foundry.
+# It sends questions to the deployed GPT-5.2 model.
+# It then displays the generated response.
+
+#imports the python sdk used to communicate with the AI model.
 from openai import OpenAI
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
-BASE_URL = os.getenv(
-    "AZURE_OPENAI_BASE_URL",
-    "https://aividaproject.services.ai.azure.com/openai/v1/",
+# A)) Configure Microsoft Foundry:
+    #1.Identifies where to send API requests
+endpoint = "https://aividaproject.services.ai.azure.com/openai/v1"
+
+    #2.selects your deployed model
+deployment_name = "gpt-5.2"
+
+# B)) Authenticate using Microsoft Entra ID:
+token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://ai.azure.com/.default")
+
+# C)) Create an OpenAI client:
+client = OpenAI(
+    base_url=endpoint,
+    api_key=token_provider
 )
-DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.2")
 
+# sends the question to GPT-5.2 and gets a resopnse
 
-def create_client() -> OpenAI:
-    """Authenticate with Microsoft Entra ID and create the API client."""
-    token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://ai.azure.com/.default"
-    )
-    return OpenAI(base_url=BASE_URL, api_key=token_provider)
+# Store the previous response ID to maintain conversation history
+previous_response_id = None
 
+print("AI Assistant is ready! Type 'exit' to quit.")
 
-def ask_ai(
-    client: OpenAI,
-    question: str,
-    previous_response_id: str | None = None,
-):
-    """Send a question, including prior response context when available."""
-    question = question.strip()
+while True:
+    # Ask the user for a question
+    question = input("\nYou: ").strip()
+
+    # End the conversation
+    if question.lower() == "exit":
+        print("Goodbye!")
+        break
+
+    # Ignore empty questions
     if not question:
-        raise ValueError("Question cannot be empty")
+        continue
 
-    request = {"model": DEPLOYMENT_NAME, "input": question}
+    # Prepare the API request
+    request = {
+        "model": deployment_name,
+        "input": question
+    }
+
+    # Include previous conversation context when available
     if previous_response_id:
         request["previous_response_id"] = previous_response_id
-    return client.responses.create(**request)
 
+    # Send the request to GPT-5.2
+    response = client.responses.create(**request)
 
-def main() -> None:
-    """Run a multi-turn command-line chatbot until the user exits."""
-    previous_response_id = None
-    print("Welcome to the AI Assistant! Type 'exit' to quit.")
+    # Display the model's answer
+    print(f"\nAI Assistant: {response.output_text}")
 
-    with create_client() as client:
-        while True:
-            question = input("\nYou: ").strip()
-            if question.lower() == "exit":
-                print("Goodbye!")
-                break
-            if not question:
-                continue
-            try:
-                response = ask_ai(client, question, previous_response_id)
-            except Exception as error:
-                print(f"Request failed: {error}")
-                continue
-
-            print(f"\nAI: {response.output_text}")
-            previous_response_id = response.id
-
-
-if __name__ == "__main__":
-    main()
+    # Save the response ID for the next question
+    previous_response_id = response.id
