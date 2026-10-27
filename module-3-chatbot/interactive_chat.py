@@ -1,44 +1,38 @@
-"""Exercise 2: Interactive chatbot with multi-turn conversation context."""
-import os
+#This is the foundation of an Interactive AI chatbot that handels ONE question per run:
 
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+# This application connects to Microsoft Foundry. It sends questions to the deployed GPT-5.2 model.
+# It then displays the generated response.
+
+#imports the python sdk used to communicate with the AI model.
 from openai import OpenAI
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
-BASE_URL = os.getenv(
-    "AZURE_OPENAI_BASE_URL",
-    "https://aividaproject.services.ai.azure.com/openai/v1/",
+# A)) Configure Microsoft Foundry:
+    #1.Identifies where to send API requests
+endpoint = "https://aividaproject.services.ai.azure.com/openai/v1"
+
+    #2.selects your deployed model
+deployment_name = "gpt-5.2"
+
+# B)) Authenticate using Microsoft Entra ID:
+token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://ai.azure.com/.default")
+
+# C)) Create an OpenAI client:
+client = OpenAI(
+    base_url=endpoint,
+    api_key=token_provider
 )
-DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.2")
+
+# sends the question to GPT-5.2 and gets a resopnse
+# D)) Get a question from the user:
+question = input("Ask your AI assistant a question: ")
 
 
-def main() -> None:
-    token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://ai.azure.com/.default"
-    )
-    previous_response_id = None
-    print("AI Assistant is ready! Type 'exit' to quit.")
+# Send the question to GPT-5.2
+response = client.responses.create(
+    model=deployment_name,
+    input=question
+)
 
-    with OpenAI(base_url=BASE_URL, api_key=token_provider) as client:
-        while True:
-            question = input("\nYou: ").strip()
-            if question.lower() == "exit":
-                print("Goodbye!")
-                break
-            if not question:
-                continue
-
-            request = {"model": DEPLOYMENT_NAME, "input": question}
-            if previous_response_id:
-                request["previous_response_id"] = previous_response_id
-
-            try:
-                response = client.responses.create(**request)
-            except Exception as error:
-                print(f"Request failed: {error}")
-                continue
-            print(f"\nAI Assistant: {response.output_text}")
-            previous_response_id = response.id
-
-
-if __name__ == "__main__":
-    main()
+# Display the AI-generated answer
+print(f"AI Assistant: {response.output_text}")
